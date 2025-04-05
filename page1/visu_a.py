@@ -10,7 +10,7 @@ import geopandas as gpd
 # --------------------------------------------------------------------
 # 1) Lecture + reprojection
 # --------------------------------------------------------------------
-chemin_geojson = r"C:\Users\Admin\OneDrive\Documents\polytechnique\taux-vegetalisation-mineralisation-surfaces-ua (2).geojson"
+chemin_geojson = r"taux_veg.geojson"
 gdf = gpd.read_file(chemin_geojson)
 
 if gdf.crs is None:
