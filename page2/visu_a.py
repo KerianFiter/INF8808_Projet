@@ -22,7 +22,7 @@ def clean_string(s: str) -> str:
     return without_accents.strip()
 
 
-df = pd.read_csv("arbres-publics.csv", engine="python", on_bad_lines="skip")
+df = pd.read_csv("../data/arbres-publics.csv", engine="python", on_bad_lines="skip")
 
 df["cleaned_name"] = df["ARROND_NOM"].apply(clean_string)
 
@@ -146,4 +146,4 @@ def display_click_info(clickData):
         return f"Erreur lors de la récupération des données : {str(e)}"
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)
