@@ -146,7 +146,7 @@ app.layout = html.Div([
 # Copy all your callback functions from each page
 @app.callback(
     Output("pie_chart","figure"),
-    Input("map","hoverData")
+    Input("map_section1","hoverData")  # Change "map" to "map_section1"
 )
 def update_pie_on_hover(hoverData):
     if not hoverData:
@@ -409,4 +409,4 @@ app.index_string = '''
 '''
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)

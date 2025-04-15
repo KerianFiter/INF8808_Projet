@@ -11,7 +11,7 @@ from dash_extensions import EventListener
 def load_page3_data():
     """Load and prepare data for page 3"""
     # Chargement et reprojection des données géospatiales
-    chemin_geojson = r"../data/espace_vert.geojson"
+    chemin_geojson = r"data/espace_vert.geojson"
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:
@@ -19,7 +19,7 @@ def load_page3_data():
     espace_vert_gdf_4326 = gdf.to_crs(epsg=4326)
     espace_vert_geojson_data = json.loads(espace_vert_gdf_4326.to_json())
 
-    chemin_geojson = r"../data/territoires_MTL_Clean.geojson"
+    chemin_geojson = r"data/territoires_MTL_Clean.geojson"
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:
@@ -126,7 +126,7 @@ def carte_espaces_verts(df_espaces_verts, _zoom, _center, _geojson_data):
         hover_name="Nom",
         hover_data={"OBJECTID": False, "TYPE": True, "SUPERFICIE": True},
         labels={"SUPERFICIE": "Superficie (km²)", "TYPE": "Type d'espace vert"},
-        map_style="carto-positron",
+        mapbox_style="carto-positron",
         center=_center,
         zoom=_zoom,
         color_continuous_scale="Greens",
@@ -160,7 +160,7 @@ def create_page3_figures(data):
         hover_name="NOM",
         hover_data={"CODEID": False, "PARC_COUNT": True, "SUPERFICIE": True},
         labels={"PARC_COUNT": "Nombre de parcs", "SUPERFICIE": "Superficie (km²)"},
-        map_style="carto-positron",
+        mapbox_style="carto-positron",
         center={"lat": 45.55, "lon": -73.75},
         zoom=9,
         color_continuous_scale="Greens",

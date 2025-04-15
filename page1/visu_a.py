@@ -12,7 +12,7 @@ import geopandas as gpd
 # --------------------------------------------------------------------
 def load_page1_data():
     """Load and prepare data for page 1"""
-    chemin_geojson = r"../data/taux_veg.geojson"
+    chemin_geojson = r"data/taux_veg.geojson"
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:

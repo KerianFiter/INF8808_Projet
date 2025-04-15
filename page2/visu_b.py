@@ -3,7 +3,7 @@ from dash import dcc, html
 import pandas as pd
 import plotly.graph_objects as go
 
-df = pd.read_csv("../data/arbres-publics.csv", engine="python", on_bad_lines="skip")
+df = pd.read_csv("data/arbres-publics.csv", engine="python", on_bad_lines="skip")
 
 df["ARROND_NOM"] = df["ARROND_NOM"].str.strip().str.title()
 

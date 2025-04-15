@@ -8,10 +8,10 @@ import geopandas as gpd
 def load_page4_data():
     """Load and prepare data for page 4"""
     # Load data
-    csv_jardins_path = r"../data/jardins-communautaires.csv"
+    csv_jardins_path = r"data/jardins-communautaires.csv"
     df = pd.read_csv(csv_jardins_path)
 
-    geojson_jardins_path = r"../data/montreal.json"
+    geojson_jardins_path = r"data/montreal.json"
     with open(geojson_jardins_path, "r", encoding="utf-8") as f:
         geojson_jardins_data = json.load(f)
     
