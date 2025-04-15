@@ -5,6 +5,7 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
 import json
+import os
 
 def clean_string(s: str) -> str:
     """
@@ -22,46 +23,42 @@ def clean_string(s: str) -> str:
     return without_accents.strip()
 
 def load_page2_data():
-    """Load and prepare data for page 2"""
+    """Load and prepare data for page 2 from optimized files"""
     import os
     
     # Check if we're running from the main directory or page2 directory
-    if os.path.exists("data/arbres-publics.csv"):
-        base_path = "data/"
+    if os.path.exists("data/optimized"):
+        base_path = "data/optimized/"
+        geojson_base_path = "data/"
     else:
-        base_path = "../data/"
-        
-    # Use the correct path for loading files
-    csv_path = os.path.join(base_path, "arbres-publics.csv")
-    df = pd.read_csv(csv_path, engine="python", on_bad_lines="skip")
-    df["cleaned_name"] = df["ARROND_NOM"].apply(clean_string)
-
-    df_total = df.groupby("cleaned_name").size().reset_index(name="nb_arbres")
-
-    df_remarquables = (
-        df[df["Arbre_remarquable"] == "O"]
-        .groupby("cleaned_name")
-        .size()
-        .reset_index(name="nb_arbres_remarquables")
-    )
-
-    df_grouped = pd.merge(df_total, df_remarquables, on="cleaned_name", how="left")
-    df_grouped["nb_arbres_remarquables"] = df_grouped["nb_arbres_remarquables"].fillna(0)
-
-    df_grouped.rename(columns={
-        "nb_arbres": "Nombre d'arbres",
-        "nb_arbres_remarquables": "Nombre d'arbres remarquables"
-    }, inplace=True)
-
-    geojson_path = os.path.join(base_path, "quartiers_sociologiques_2014.geojson")
+        base_path = "../data/optimized/"
+        geojson_base_path = "../data/"
+    
+    # Load pre-processed data from optimized directory
+    csv_path = os.path.join(base_path, "arbres_aggregated.csv")
+    df_aggregated = pd.read_csv(csv_path)
+    
+    # Clean names for joining
+    df_aggregated["cleaned_name"] = df_aggregated["ARROND_NOM"].apply(clean_string)
+    
+    # Rename columns for consistency with the rest of the code
+    df_grouped = df_aggregated.rename(columns={
+        "Arbres": "Nombre d'arbres",
+        "Arbres_remarquables": "Nombre d'arbres remarquables"
+    })
+    
+    # Load and process GeoJSON file - still need this for mapping
+    geojson_path = os.path.join(geojson_base_path, "quartiers_sociologiques_2014.geojson")
     with open(geojson_path, "r", encoding="utf-8") as f:
         geojson_data = json.load(f)
 
+    # Process geojson to add cleaned names
     for feature in geojson_data["features"]:
         original = feature["properties"]["Arrondissement"]
         cleaned = clean_string(original)
         feature["properties"]["cleaned_name"] = cleaned
 
+    # Create a dataframe with original and cleaned names from geojson
     geo_rows = []
     for feat in geojson_data["features"]:
         original = feat["properties"]["Arrondissement"]
@@ -72,6 +69,7 @@ def load_page2_data():
         })
     geo_df = pd.DataFrame(geo_rows)
 
+    # Merge the datasets
     df_merged = pd.merge(
         geo_df,
         df_grouped,
@@ -79,6 +77,7 @@ def load_page2_data():
         on="cleaned_name"
     )
 
+    # Fill NaN values
     df_merged["Nombre d'arbres"] = df_merged["Nombre d'arbres"].fillna(0)
     df_merged["Nombre d'arbres remarquables"] = df_merged["Nombre d'arbres remarquables"].fillna(0)
 
