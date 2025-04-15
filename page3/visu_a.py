@@ -10,8 +10,17 @@ from dash_extensions import EventListener
 
 def load_page3_data():
     """Load and prepare data for page 3"""
-    # Chargement et reprojection des données géospatiales
-    chemin_geojson = r"data/espace_vert.geojson"
+    # Add code to detect if we're running from main directory or from page3
+    import os
+    
+    # Check if we're running from the main directory or page3 directory
+    if os.path.exists("data/espace_vert.geojson"):
+        base_path = "data/"
+    else:
+        base_path = "../data/"
+        
+    # Use the correct path for loading files
+    chemin_geojson = os.path.join(base_path, "espace_vert.geojson")
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:
@@ -19,7 +28,7 @@ def load_page3_data():
     espace_vert_gdf_4326 = gdf.to_crs(epsg=4326)
     espace_vert_geojson_data = json.loads(espace_vert_gdf_4326.to_json())
 
-    chemin_geojson = r"data/territoires_MTL_Clean.geojson"
+    chemin_geojson = os.path.join(base_path, "territoires_MTL_Clean.geojson")
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:

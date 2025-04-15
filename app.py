@@ -222,17 +222,30 @@ def update_map_and_hover_info(hoverData):
 
     try:
         codeid = hoverData["points"][0]["location"]
+        print(f"DEBUG: Hovered CODEID: {codeid}")  # Debug statement
+        
         df_territoires = data3['df_territoires']
+        # Ensure the CODEID in our DataFrame matches what we get from hover
+        print(f"DEBUG: Available CODEIDs: {df_territoires['CODEID'].unique()}")
+        
         df_espaces_verts = data3['df_espaces_verts']
         territoires_MTL_Clean_geojson_data = data3['territoires_MTL_Clean_geojson_data']
         espace_vert_geojson_data = data3['espace_vert_geojson_data']
         territory_shapes = data3['territory_shapes']
         
+        # Check if the CODEID exists in our territory_shapes dictionary
+        if codeid not in territory_shapes:
+            print(f"DEBUG: CODEID {codeid} not found in territory_shapes")
+            return figures3['espace_verts_map'], f"Territoire avec CODEID {codeid} non trouvé."
+        
         selected_territory = next(
-            (feature for feature in territoires_MTL_Clean_geojson_data["features"] if feature["properties"]["CODEID"] == codeid),
+            (feature for feature in territoires_MTL_Clean_geojson_data["features"] 
+             if str(feature["properties"]["CODEID"]) == str(codeid)),
             None,
         )
+        
         if not selected_territory:
+            print(f"DEBUG: No territory found for CODEID {codeid}")
             return figures3['espace_verts_map'], "Aucun territoire trouvé."
 
         territory_name = selected_territory["properties"].get("NOM", "Nom inconnu")
@@ -245,7 +258,8 @@ def update_map_and_hover_info(hoverData):
         center = {"lat": centroid.y, "lon": centroid.x}
 
         filtered_features = [
-            feature for feature in espace_vert_geojson_data["features"] if shape(feature["geometry"]).intersects(territory_shape)
+            feature for feature in espace_vert_geojson_data["features"] 
+            if shape(feature["geometry"]).intersects(territory_shape)
         ]
 
         filtered_geojson_data = espace_vert_geojson_data.copy()
@@ -256,8 +270,7 @@ def update_map_and_hover_info(hoverData):
 
     except (IndexError, KeyError, TypeError) as e:
         print(f"Error: {e}")
-        return figures3['espace_verts_map'], "Erreur lors du traitement des données de survol."
-
+        return figures3['espace_verts_map'], f"Erreur lors du traitement des données de survol: {str(e)}"
 
 # Callback to count jardins in the hovered arrondissement
 @app.callback(

@@ -12,7 +12,16 @@ import geopandas as gpd
 # --------------------------------------------------------------------
 def load_page1_data():
     """Load and prepare data for page 1"""
-    chemin_geojson = r"data/taux_veg.geojson"
+    import os
+    
+    # Check if we're running from the main directory or page1 directory
+    if os.path.exists("data/taux_veg.geojson"):
+        base_path = "data/"
+    else:
+        base_path = "../data/"
+        
+    # Use the correct path for loading files
+    chemin_geojson = os.path.join(base_path, "taux_veg.geojson")
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:
@@ -34,6 +43,7 @@ def load_page1_data():
         total = (df["Veg_km2"] + df["Min_km2"]).replace(0,1)
         df["Veg_Taux"] = (df["Veg_km2"] / total) * 100
 
+    # Convert CODEID to string for consistency with GeoJSON format
     df["CODEID"] = df["CODEID"].astype(int)
 
     if "Eau_km2" not in df.columns:

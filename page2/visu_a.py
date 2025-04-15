@@ -23,7 +23,17 @@ def clean_string(s: str) -> str:
 
 def load_page2_data():
     """Load and prepare data for page 2"""
-    df = pd.read_csv("data/arbres-publics.csv", engine="python", on_bad_lines="skip")
+    import os
+    
+    # Check if we're running from the main directory or page2 directory
+    if os.path.exists("data/arbres-publics.csv"):
+        base_path = "data/"
+    else:
+        base_path = "../data/"
+        
+    # Use the correct path for loading files
+    csv_path = os.path.join(base_path, "arbres-publics.csv")
+    df = pd.read_csv(csv_path, engine="python", on_bad_lines="skip")
     df["cleaned_name"] = df["ARROND_NOM"].apply(clean_string)
 
     df_total = df.groupby("cleaned_name").size().reset_index(name="nb_arbres")
@@ -43,7 +53,8 @@ def load_page2_data():
         "nb_arbres_remarquables": "Nombre d'arbres remarquables"
     }, inplace=True)
 
-    with open("data/quartiers_sociologiques_2014.geojson", "r", encoding="utf-8") as f:
+    geojson_path = os.path.join(base_path, "quartiers_sociologiques_2014.geojson")
+    with open(geojson_path, "r", encoding="utf-8") as f:
         geojson_data = json.load(f)
 
     for feature in geojson_data["features"]:
