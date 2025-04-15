@@ -72,7 +72,7 @@ app.layout = html.Div(
             style={"width":"33%", "padding":"10px"},
             children=[
                 html.H1(
-                    "Mon quartier est-il vert ?",
+                    "Jardins communautaire près de mon quartier",
                     style={"textAlign":"center", "margin":"0 0 20px 0"}
                 ),
                 html.Div(id='info-text-jardins')
@@ -81,7 +81,7 @@ app.layout = html.Div(
         html.Div(
             style={"width":"67%", "padding":"10px", "height":"80vh", "overflow":"visible"},
             children=[
-                html.H3("Jardins communautaires par arrondissement"),
+                html.H3("Parcelles de jardins communautaires de montréal"),
                 dcc.Graph(
                     id="fig_map",
                     figure=fig,
