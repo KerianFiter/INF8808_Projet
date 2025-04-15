@@ -33,45 +33,49 @@ def create_page4_figures(data):
     df = data['df']
     geojson_jardins_data = data['geojson_jardins_data']
     
-    # Create a scatter mapbox plot with orange markers
-    fig = px.scatter_mapbox(
-        df,
-        lat="latitude",
-        lon="longitude",
-        hover_name="nom",
-        hover_data={"arrondissement": True, "adresse": True, "latitude": False, "longitude": False},
-        height=600,
-        color_discrete_sequence=["orange"],
-        size_max=20,  # Increase marker size
-        opacity=0.8
-    )
+    # Create base figure
+    fig = go.Figure()
 
-    # Add GeoJSON boundaries using Choroplethmapbox, filled with green
-    fig.add_trace(
-        go.Choroplethmapbox(
-            geojson=geojson_jardins_data,
-            featureidkey="properties.NOM",
-            locations=[feature["properties"]["NOM"] for feature in geojson_jardins_data["features"]],
-            z=[1] * len(geojson_jardins_data["features"]),
-            colorscale=[[0, 'rgb(0,128,128)'], [1, 'rgb(0,128,128)']],  # Solid teal fill
-            showscale=False,
-            name="Arrondissement Boundaries",
-            marker=dict(line=dict(width=1, color="white"), opacity=0.2),  # Solid white outline
-            hoverinfo="skip"
+    # Add choropleth layer first
+    fig.add_trace(go.Choroplethmapbox(
+        geojson=geojson_jardins_data,
+        locations=[feature["properties"]["NOM"] for feature in geojson_jardins_data["features"]],
+        z=[1] * len(geojson_jardins_data["features"]),  # Dummy values
+        featureidkey="properties.NOM",
+        colorscale=[[0, 'rgb(0,128,128)'], [1, 'rgb(0,128,128)']],  # Solid color
+        showscale=False,
+        marker_line_width=1,
+        marker_line_color="white",
+        hoverinfo="none"
+    ))
+
+    # Add scatter markers on top
+    fig.add_trace(go.Scattermapbox(
+        lat=df["latitude"],
+        lon=df["longitude"],
+        mode="markers",
+        marker=go.scattermapbox.Marker(
+            size=8,
+            color="orange",
+            opacity=0.95
+        ),
+        hovertext=df["nom"],  # Main title
+        hoverinfo="text",
+        customdata=df[["arrondissement", "adresse"]],
+        hovertemplate=(
+            "<b>%{hovertext}</b><br>" +
+            "Arrondissement: %{customdata[0]}<br>" +
+            "Adresse: %{customdata[1]}<extra></extra>"
         )
-    )
+    ))
 
+    # Set layout
     fig.update_layout(
         mapbox_style="carto-positron",
-        mapbox=dict(
-            center=dict(lat=45.5017, lon=-73.5673),  # Center on Montreal
-            zoom=9,  # Initial zoom level to show districts
-            pitch=0,
-            bearing=0
-        ),
+        mapbox_center={"lat": 45.5017, "lon": -73.5673},
+        mapbox_zoom=9,
         margin={"r":0, "t":0, "l":0, "b":0},
-        dragmode="pan",
-        clickmode="event+select"
+        height=600
     )
     
     return {
