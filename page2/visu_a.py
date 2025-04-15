@@ -43,7 +43,7 @@ df_grouped.rename(columns={
     "nb_arbres_remarquables": "Nombre d'arbres remarquables"
 }, inplace=True)
 
-with open("quartiers_sociologiques_2014.geojson", "r", encoding="utf-8") as f:
+with open("../data/quartiers_sociologiques_2014.geojson", "r", encoding="utf-8") as f:
     geojson_data = json.load(f)
 
 for feature in geojson_data["features"]:
