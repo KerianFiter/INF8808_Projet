@@ -8,111 +8,127 @@ import json
 import geopandas as gpd
 
 # --------------------------------------------------------------------
-# 1) Lecture + reprojection
+# Functions for data loading and figure creation
 # --------------------------------------------------------------------
-chemin_geojson = r"../data/taux_veg.geojson"
-gdf = gpd.read_file(chemin_geojson)
+def load_page1_data():
+    """Load and prepare data for page 1"""
+    import os
+    
+    # Check if we're running from the main directory or page1 directory
+    if os.path.exists("data/taux_veg.geojson"):
+        base_path = "data/"
+    else:
+        base_path = "../data/"
+        
+    # Use the correct path for loading files
+    chemin_geojson = os.path.join(base_path, "taux_veg.geojson")
+    gdf = gpd.read_file(chemin_geojson)
 
-if gdf.crs is None:
-    gdf.set_crs(epsg=2950, inplace=True)
-gdf_4326 = gdf.to_crs(epsg=4326)
-geojson_data = json.loads(gdf_4326.to_json())
+    if gdf.crs is None:
+        gdf.set_crs(epsg=2950, inplace=True)
+    gdf_4326 = gdf.to_crs(epsg=4326)
+    geojson_data = json.loads(gdf_4326.to_json())
+    
+    df = gdf_4326.copy()
+    if "CODEID" not in df.columns:
+        df["CODEID"] = range(1, len(df)+1)
+    if "Veg_km2" not in df.columns:
+        df["Veg_km2"] = 0
+    if "Min_km2" not in df.columns:
+        df["Min_km2"] = 0
+    if "NOM" not in df.columns:
+        df["NOM"] = "Inconnu"
 
-# --------------------------------------------------------------------
-# 2) DataFrame
-# --------------------------------------------------------------------
-df = gdf_4326.copy()
-if "CODEID" not in df.columns:
-    df["CODEID"] = range(1, len(df)+1)
-if "Veg_km2" not in df.columns:
-    df["Veg_km2"] = 0
-if "Min_km2" not in df.columns:
-    df["Min_km2"] = 0
-if "NOM" not in df.columns:
-    df["NOM"] = "Inconnu"
+    if "Veg_Taux" not in df.columns:
+        total = (df["Veg_km2"] + df["Min_km2"]).replace(0,1)
+        df["Veg_Taux"] = (df["Veg_km2"] / total) * 100
 
-if "Veg_Taux" not in df.columns:
-    total = (df["Veg_km2"] + df["Min_km2"]).replace(0,1)
-    df["Veg_Taux"] = (df["Veg_km2"] / total) * 100
+    # Convert CODEID to string for consistency with GeoJSON format
+    df["CODEID"] = df["CODEID"].astype(int)
 
-df["CODEID"] = df["CODEID"].astype(int)
+    if "Eau_km2" not in df.columns:
+        df["Eau_km2"] = 0
+    if "NonCl_km2" not in df.columns:
+        df["NonCl_km2"] = 0
 
-# Si besoin : eau / non classé
-if "Eau_km2" not in df.columns:
-    df["Eau_km2"] = 0
-if "NonCl_km2" not in df.columns:
-    df["NonCl_km2"] = 0
+    return {
+        'df': df,
+        'geojson_data': geojson_data
+    }
 
-# --------------------------------------------------------------------
-# 3) Figure carte (choropleth_map)
-# --------------------------------------------------------------------
-fig_map = px.choropleth_map(
-    df,
-    geojson=geojson_data,
-    locations="CODEID",
-    featureidkey="properties.CODEID",
-    color="Veg_Taux",
-    hover_name="NOM",
-    hover_data={
-        "Veg_km2": ":.2f",
-        "Min_km2": ":.2f",
-        "CODEID": False
-    },
-    labels={"Veg_km2":"km2 Vég.","Min_km2":"km2 Min."},
-    map_style="open-street-map",
-    center={"lat":45.55, "lon":-73.65},
-    zoom=9,
-    color_continuous_scale="Greens",
-    range_color=(0,100)
-)
-fig_map.update_layout(
-    margin={"r":0,"t":0,"l":0,"b":0},
-    hovermode="closest",
-    coloraxis_showscale=True
-)
-
-# --------------------------------------------------------------------
-# 4) Diagramme en secteurs initial
-# --------------------------------------------------------------------
-quartier_init = df.iloc[0]
-autres_init = quartier_init["Eau_km2"] + quartier_init["NonCl_km2"]
-
-labels = ["Végétale", "Minérale", "Autres"]
-values_init = [
-    quartier_init["Veg_km2"],
-    quartier_init["Min_km2"],
-    autres_init
-]
-
-fig_pie = go.Figure(data=[
-    go.Pie(
-        labels=labels,
-        values=values_init,
-        # On désactive le texte auto par défaut
-        textinfo="none",
-        # On veut étiquettes + km²
-        texttemplate="%{label}\n%{value:.2f} km²",
-        # On peut placer le texte en dehors du camembert
-        textposition="outside"
+def create_page1_figures(data):
+    """Create figures for page 1"""
+    df = data['df']
+    geojson_data = data['geojson_data']
+    
+    fig_map = px.choropleth_mapbox(
+        df,
+        geojson=geojson_data,
+        locations="CODEID",
+        featureidkey="properties.CODEID",
+        color="Veg_Taux",
+        hover_name="NOM",
+        hover_data={
+            "Veg_km2": ":.2f",
+            "Min_km2": ":.2f",
+            "CODEID": False
+        },
+        labels={"Veg_km2":"km2 Vég.","Min_km2":"km2 Min."},
+        mapbox_style="open-street-map",
+        center={"lat":45.55, "lon":-73.65},
+        zoom=9,
+        color_continuous_scale="Greens",
+        range_color=(0,100)
     )
-])
-# Mise à jour du layout (titre, marge, pas de légende)
-fig_pie.update_layout(
-    title={
-        "text": f"{quartier_init['NOM']}",
-        "x":0.5,
-        "y":0.88,
-        "xanchor":"center",
-        "yanchor":"top"
-    },
-    margin={"t":60},
-    showlegend=False
-)
+    fig_map.update_layout(
+        margin={"r":0,"t":0,"l":0,"b":0},
+        hovermode="closest",
+        coloraxis_showscale=True
+    )
+
+    quartier_init = df.iloc[0]
+    autres_init = quartier_init["Eau_km2"] + quartier_init["NonCl_km2"]
+
+    labels = ["Végétale", "Minérale", "Autres"]
+    values_init = [
+        quartier_init["Veg_km2"],
+        quartier_init["Min_km2"],
+        autres_init
+    ]
+
+    fig_pie = go.Figure(data=[
+        go.Pie(
+            labels=labels,
+            values=values_init,
+            textinfo="none",
+            texttemplate="%{label}\n%{value:.2f} km²",
+            textposition="outside"
+        )
+    ])
+    fig_pie.update_layout(
+        title={
+            "text": f"{quartier_init['NOM']}",
+            "x":0.5,
+            "y":0.88,
+            "xanchor":"center",
+            "yanchor":"top"
+        },
+        margin={"t":60},
+        showlegend=False
+    )
+
+    return {
+        'map': fig_map,
+        'pie': fig_pie
+    }
 
 # --------------------------------------------------------------------
-# 5) Application Dash
+# Application Dash
 # --------------------------------------------------------------------
 app = dash.Dash(__name__)
+
+data = load_page1_data()
+figures = create_page1_figures(data)
 
 app.layout = html.Div(
     style={"display":"flex", "flexDirection":"row"},
@@ -127,7 +143,7 @@ app.layout = html.Div(
                 ),
                 dcc.Graph(
                     id="pie_chart",
-                    figure=fig_pie,
+                    figure=figures['pie'],
                     style={"height":"80vh"}
                 )
             ]
@@ -139,7 +155,7 @@ app.layout = html.Div(
                 html.H3("Proportion de surface végétale par arrondissement"),
                 dcc.Graph(
                     id="map",
-                    figure=fig_map,
+                    figure=figures['map'],
                     style={"height":"80vh"},
                     hoverData=None
                 )
@@ -149,7 +165,7 @@ app.layout = html.Div(
 )
 
 # --------------------------------------------------------------------
-# 6) Callback : survol => maj du Pie Chart
+# Callback : survol => maj du Pie Chart
 # --------------------------------------------------------------------
 @app.callback(
     Output("pie_chart","figure"),
@@ -157,16 +173,16 @@ app.layout = html.Div(
 )
 def update_pie_on_hover(hoverData):
     if not hoverData:
-        return fig_pie
+        return figures['pie']
 
     try:
         codeid = hoverData["points"][0]["location"]
     except (IndexError, KeyError, TypeError):
-        return fig_pie
+        return figures['pie']
 
-    row_df = df.loc[df["CODEID"] == codeid]
+    row_df = data['df'].loc[data['df']["CODEID"] == codeid]
     if row_df.empty:
-        return fig_pie
+        return figures['pie']
 
     row = row_df.iloc[0]
     autre_val = row["Eau_km2"] + row["NonCl_km2"]
@@ -197,7 +213,7 @@ def update_pie_on_hover(hoverData):
     return new_fig
 
 # --------------------------------------------------------------------
-# 7) Lancement
+# Lancement
 # --------------------------------------------------------------------
 if __name__=="__main__":
     app.run(debug=True)
