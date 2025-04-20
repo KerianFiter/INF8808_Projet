@@ -7,6 +7,7 @@ import geopandas as gpd
 from dash_extensions import EventListener
 import plotly.express as px
 import plotly.graph_objects as go
+import copy
 from shapely.geometry import shape
 
 # Import your visualization modules
@@ -14,6 +15,7 @@ from page1.visu_a import load_page1_data, create_page1_figures
 from page2.visu_a import load_page2_data, create_page2_figures
 from page3.visu_a import load_page3_data, create_page3_figures, carte_espaces_verts
 from page4.visu_a import load_page4_data, create_page4_figures
+from page6.visu_a import load_page6_data,create_page6_figures,add_bars_on_hover
 
 # Initialize the Dash app
 app = dash.Dash(
@@ -30,13 +32,14 @@ data1 = load_page1_data()
 data2 = load_page2_data()
 data3 = load_page3_data() 
 data4 = load_page4_data()
+data6 = load_page6_data()
 
 # Create figures
 figures1 = create_page1_figures(data1)
 figures2 = create_page2_figures(data2)
 figures3 = create_page3_figures(data3)
 figures4 = create_page4_figures(data4)
-
+figures6 = create_page6_figures(data6)
 # App Layout with Scrollytelling
 app.layout = html.Div([
     # Header
@@ -52,7 +55,8 @@ app.layout = html.Div([
             html.Li(html.A("Mon quartier est-il vert ?", href="#section1")),
             html.Li(html.A("Arbres urbains", href="#section2")),
             html.Li(html.A("Parcs de mon quartier", href="#section3")),
-            html.Li(html.A("Jardins communautaires", href="#section4"))
+            html.Li(html.A("Jardins communautaires", href="#section4")),
+            html.Li(html.A("Qualité de l'air", href="#section6")),
         ], className="nav-links")
     ], className="nav-bar"),
     
@@ -121,7 +125,41 @@ app.layout = html.Div([
             ], className="viz-column-wide")
         ], className="viz-row")
     ], className="section"),
-    
+# Section 5: Page 5 visualization
+    html.Section([
+        html.H2("Jardins communautaires", id="section4"),
+        html.Div([
+            html.Div([
+                html.H3("Jardins communautaires près de mon quartier"),
+                html.Div(id="info-text-jardins"),
+            ], className="viz-column"),
+            html.Div([
+                html.H3("Parcelles de jardins communautaires de montréal"),
+                dcc.Graph(id="fig_map", figure=figures4["map"],
+                         config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}),
+            ], className="viz-column-wide")
+        ], className="viz-row")
+    ], className="section"),
+# Section 6: Page 6 visualization
+    html.Section([
+        html.H2("Indice de Qualité de l’Air (IQA) par station", id="section6"),
+        html.Div([
+            html.Div([
+                html.H3("Indice de qualité"),
+                html.Div(id="info-text-jardins"),
+            ], className="viz-column"),
+            html.Div([
+                html.H3("Station d'analyse de Montréal"),
+                dcc.Graph(id="iqa_map", figure=figures6["map"],
+                         config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}),
+                        dcc.Graph(
+                        id="bar-chart",
+                        figure=go.Figure(),
+                        config={'displayModeBar': False}
+                    ),
+            ], className="viz-column-wide")
+        ], className="viz-row")
+    ], className="section"),
     # Footer
     html.Footer([
         html.P("© 2025 INF8808E - Visualisation de données", className="footer-text")
@@ -292,7 +330,22 @@ def display_jardin_count(hover_data):
         ])
     except (KeyError, IndexError):
         return "Hover data unavailable. Try another marker."
+# Callback to count jardins in the hovered arrondissement
+stats_df = figures6["stats"]
+base_map = figures6["map"]
 
+@app.callback(
+    Output("iqa_map", "figure"),
+    Input("iqa_map", "hoverData")
+)
+def on_hover_air(hoverData):
+    fig = copy.deepcopy(base_map)
+    if hoverData and hoverData.get("points"):
+        station = hoverData["points"][0]["customdata"][0]
+        fig = add_bars_on_hover(fig, stats_df, station)
+    return fig
+    # retour d'une figure vide si pas de survol
+    return go.Figure()
 # Add CSS for the scrollytelling layout
 app.index_string = '''
 <!DOCTYPE html>
