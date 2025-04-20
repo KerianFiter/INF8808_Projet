@@ -143,12 +143,15 @@ if __name__ == "__main__":
                         id="iqa_map",
                         figure=figures['map'],
                         style={"height": "100%", "width": "100%"},
-                        hoverData=None,
                         config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}
                     ),
                     dcc.Graph(
                         id="bar-chart",
-                        figure=go.Figure(),
+                        figure=go.Figure().update_layout(
+                            title="Survolez une station",
+                            xaxis_title="Qualité",
+                            yaxis_title="Nombre de jours"
+                        ),
                         config={'displayModeBar': False}
                     ),
 
@@ -170,12 +173,15 @@ if __name__ == "__main__":
     def on_hover_air(hoverData):
         fig = copy.deepcopy(base_map)
         if hoverData and hoverData.get("points"):
-            # on cherche **le premier** point qui a du customdata
+            # extraire stationId depuis customdata
             for pt in hoverData["points"]:
                 cd = pt.get("customdata")
                 if cd:
-                    station = cd[0]
-                    fig = add_bars_on_hover(fig, stats_df, station)
+                    station_id = cd[0]
+                    # superposer les 3 barres
+                    fig = add_bars_on_hover(fig, stats_df, station_id)
                     break
         return fig
+
+
     app.run(debug=True)
