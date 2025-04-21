@@ -86,25 +86,40 @@ def create_base_map(geojson, stats_df):
     return fig
 
 def add_bars_on_hover(fig, stats_df, station_id,
-                      scale=0.00015,  # hauteur = jours * scale
-                      dx=0.0004       # espacement horizontal
+                      scale=0.001,   # hauteur = jours * scale
+                      dx=0.01         # espacement horizontal ≃ 1 km
                      ):
-    row = stats_df.loc[stats_df["stationId"]==station_id].iloc[0]
+    """
+    Dessine trois segments verticaux côte à côte pour Bon / Acceptable / Mauvais.
+    """
+    row = stats_df.loc[stats_df["stationId"] == station_id].iloc[0]
     lon0, lat0 = row["longitude"], row["latitude"]
-    colors = {"Bon":"green","Acceptable":"orange","Mauvais":"red"}
-    for i, cat in enumerate(["Bon","Acceptable","Mauvais"]):
-        h = row.get(cat,0) * scale
-        lon_shift = lon0 + (i-1)*dx
+    colors = {"Bon": "green", "Acceptable": "orange", "Mauvais": "red"}
+    cats   = ["Bon", "Acceptable", "Mauvais"]
+
+    for idx, cat in enumerate(cats):
+        jours = int(row.get(cat, 0))
+        if jours <= 0:
+            continue
+        # calcul des positions
+        lon_shift = lon0 + (idx - 1) * dx   # -dx, 0, +dx
+        lat_end   = lat0  + jours * scale
+
         fig.add_trace(go.Scattermapbox(
             lon=[lon_shift, lon_shift],
-            lat=[lat0,       lat0 + h],
+            lat=[lat0,     lat_end],
             mode="lines",
-            line=dict(width=8, color=colors[cat]),
+            line=dict(width=14, color=colors[cat]),  # plus large = effet "barre"
             hoverinfo="text",
-            hovertext=f"{cat} : {int(row[cat])} jour{'s' if row[cat]>1 else ''}",
+            hovertext=f"{cat} : {jours} jour{'s' if jours > 1 else ''}",
             showlegend=False
         ))
+
     return fig
+
+
+
+
 def create_page6_figures(data):
     df= data["df"]
     geojson=data["geojson_station_data"]
@@ -145,15 +160,6 @@ if __name__ == "__main__":
                         style={"height": "100%", "width": "100%"},
                         config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}
                     ),
-                    dcc.Graph(
-                        id="bar-chart",
-                        figure=go.Figure().update_layout(
-                            title="Survolez une station",
-                            xaxis_title="Qualité",
-                            yaxis_title="Nombre de jours"
-                        ),
-                        config={'displayModeBar': False}
-                    ),
 
                 ],className="viz-column-wide"
             )
@@ -170,17 +176,18 @@ if __name__ == "__main__":
         Output("iqa_map", "figure"),
         Input("iqa_map", "hoverData")
     )
-    def on_hover_air(hoverData):
+    def update_bar_chart(hoverData):
+        # si pas de survol
         fig = copy.deepcopy(base_map)
+
         if hoverData and hoverData.get("points"):
-            # extraire stationId depuis customdata
             for pt in hoverData["points"]:
                 cd = pt.get("customdata")
                 if cd:
                     station_id = cd[0]
-                    # superposer les 3 barres
                     fig = add_bars_on_hover(fig, stats_df, station_id)
                     break
+
         return fig
 
 

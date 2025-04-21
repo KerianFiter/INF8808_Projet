@@ -152,11 +152,6 @@ app.layout = html.Div([
                 html.H3("Station d'analyse de Montréal"),
                 dcc.Graph(id="iqa_map", figure=figures6["map"],
                          config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}),
-                        dcc.Graph(
-                        id="bar-chart",
-                        figure=go.Figure(),
-                        config={'displayModeBar': False}
-                    ),
             ], className="viz-column-wide")
         ], className="viz-row")
     ], className="section"),
@@ -334,18 +329,24 @@ def display_jardin_count(hover_data):
 stats_df = figures6["stats"]
 base_map = figures6["map"]
 
+
 @app.callback(
     Output("iqa_map", "figure"),
     Input("iqa_map", "hoverData")
 )
-def on_hover_air(hoverData):
+def update_bar_chart(hoverData):
+        # si pas de survol
     fig = copy.deepcopy(base_map)
+
     if hoverData and hoverData.get("points"):
-        station = hoverData["points"][0]["customdata"][0]
-        fig = add_bars_on_hover(fig, stats_df, station)
+        for pt in hoverData["points"]:
+            cd = pt.get("customdata")
+            if cd:
+                station_id = cd[0]
+                fig = add_bars_on_hover(fig, stats_df, station_id)
+                break
     return fig
-    # retour d'une figure vide si pas de survol
-    return go.Figure()
+
 # Add CSS for the scrollytelling layout
 app.index_string = '''
 <!DOCTYPE html>
