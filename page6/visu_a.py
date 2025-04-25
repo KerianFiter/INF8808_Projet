@@ -13,7 +13,17 @@ from shapely.geometry import shape
 from dash_extensions import EventListener
 
 # Function for data loading
-
+POLLUTANT_FULL_NAMES = {
+    "CE": "Carbone élémentaire",
+    "CO": "Monoxyde de carbone",
+    "COV": "Composés organiques volatils",
+    "H2S": "Sulfure d’hydrogène",
+    "NOx": "Mono/dioxyde d’azote",
+    "O3": "Ozone",
+    "PUF": "Particules ultra fines",
+    "PM": "Particules fines",
+    "SO2": "Dioxyde de soufre"
+}
 def load_page6_data():
     import os
     if os.path.exists("data/rsqa-indice-qualite-air-station-2022-2024 (3).csv"):
@@ -135,19 +145,24 @@ if __name__ == "__main__":
     # Load data and create figures
     data = load_page6_data()
     figures = create_page6_figures(data)
-
+    initial_ts = go.Figure()
+    initial_ts.update_layout(
+        title="Cliquez sur une station…",
+        margin=dict(t=30, b=30)
+    )
     # Layout
     app.layout = html.Div(
         style={"display": "flex", "flexDirection": "row"},
         children=[
             html.Div(
-                style={"width": "33%", "padding": "10px"},
+                style={"flex": "1", "padding": "0 10px"},
                 children=[
-                    html.H1(
-                        "Station dans mon quartier",
-                        style={"textAlign": "center", "margin": "0 0 20px 0"}
-                    ),
-                    html.Div(id='info-text-stations')
+                    html.H4("IQA quotidien et polluant dominant"),
+                    dcc.Graph(
+                        id="time_series",
+                        figure=initial_ts,
+                        config={'displayModeBar': False}
+                    )
                 ]
             ),
             html.Div(
@@ -170,24 +185,96 @@ if __name__ == "__main__":
 # --------------------------------------------------------------------
     stats_df = figures["stats"]
     base_map = figures["map"]
+    df_all = data['df']
+    # Gérer l'état de la station survolée
+    last_hovered_station = None
 
-
+    # … puis, votre callback mise à jour :
     @app.callback(
         Output("iqa_map", "figure"),
         Input("iqa_map", "hoverData")
     )
     def update_bar_chart(hoverData):
-        # si pas de survol
+        global last_hovered_station
         fig = copy.deepcopy(base_map)
 
-        if hoverData and hoverData.get("points"):
-            for pt in hoverData["points"]:
+        if hoverData and hoverData.get('points'):
+            found = False
+            for pt in hoverData['points']:
+                cd = pt.get('customdata')
+                if cd:
+                    station_id = cd[0]
+                    last_hovered_station = station_id
+                    found = True
+                    break
+            if not found:
+                station_id = last_hovered_station
+        else:
+            last_hovered_station = None
+            return fig
+
+        fig = add_bars_on_hover(fig, stats_df, last_hovered_station)
+
+        # récupération et traduction des polluants
+        codes = df_all.loc[df_all['stationId']==last_hovered_station, 'polluant'].unique().tolist()
+        lines = []
+        for code in codes:
+            full = POLLUTANT_FULL_NAMES.get(code, code)
+            lines.append(f"{code} : {full}")
+        legend_text = "<b>Polluants mesurés :</b><br>" + "<br>".join(lines)
+
+        fig.update_layout(annotations=[{
+            'xref':'paper','yref':'paper',
+            'x':0.01,'y':0.99,
+            'text':legend_text,
+            'showarrow':False,
+            'align':'left',
+            'bgcolor':'rgba(255,255,255,0.8)',
+            'bordercolor':'black',
+            'borderwidth':1,
+            'font':{'size':10}
+        }])
+
+        return fig
+
+
+    @app.callback(
+        Output("time_series", "figure"),
+        Input("iqa_map", "clickData")
+    )
+    def display_time_series(clickData):
+        global last_hovered_station
+
+        # 1) Essayer d'extraire la station depuis clickData
+        station_id = None
+        if clickData and clickData.get("points"):
+            for pt in clickData["points"]:
                 cd = pt.get("customdata")
                 if cd:
                     station_id = cd[0]
-                    fig = add_bars_on_hover(fig, stats_df, station_id)
+                    last_hovered_station = station_id
                     break
 
+        # 2) Si on n'a pas trouvé de station sur ce clic, on retombe sur la dernière valide
+        if station_id is None:
+            station_id = last_hovered_station
+
+        # 3) Si toujours pas de station (aucun clic valide depuis le début), on renvoie l'initial
+        if not station_id:
+            return initial_ts
+
+        # 4) Sinon, on construit la série temporelle
+        dff = df_all[df_all['stationId'] == station_id].copy()
+        dff.sort_values('day', inplace=True)
+
+        fig = px.line(
+            dff, x='day', y='valeur',
+            hover_data=['polluant'],
+            labels={'day': 'Date', 'valeur': 'IQA'},
+            title=f"IQA quotidien — {station_id}"
+        )
+        fig.update_traces(mode='lines+markers')
+        fig.update_layout(margin=dict(t=30, b=30))
         return fig
 
 
