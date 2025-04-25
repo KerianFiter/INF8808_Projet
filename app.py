@@ -7,6 +7,7 @@ import geopandas as gpd
 from dash_extensions import EventListener
 import plotly.express as px
 import plotly.graph_objects as go
+import copy
 from shapely.geometry import shape
 
 # Import your visualization modules
@@ -14,6 +15,7 @@ from page1.visu_a import load_page1_data, create_page1_figures
 from page2.visu_a import load_page2_data, create_page2_figures
 from page3.visu_a import load_page3_data, create_page3_figures, carte_espaces_verts
 from page4.visu_a import load_page4_data, create_page4_figures
+from page6.visu_a import load_page6_data,create_page6_figures,add_bars_on_hover
 
 # Initialize the Dash app
 app = dash.Dash(
@@ -28,34 +30,52 @@ server = app.server  # For deployment platforms
 # Load data for all pages
 data1 = load_page1_data()
 data2 = load_page2_data()
-data3 = load_page3_data() 
+data3 = load_page3_data()
 data4 = load_page4_data()
+data6 = load_page6_data()
 
 # Create figures
 figures1 = create_page1_figures(data1)
 figures2 = create_page2_figures(data2)
 figures3 = create_page3_figures(data3)
 figures4 = create_page4_figures(data4)
-
+figures6 = create_page6_figures(data6)
+POLLUTANT_FULL_NAMES = {
+    "CE": "Carbone élémentaire",
+    "CO": "Monoxyde de carbone",
+    "COV": "Composés organiques volatils",
+    "H2S": "Sulfure d’hydrogène",
+    "NOx": "Mono/dioxyde d’azote",
+    "O3": "Ozone",
+    "PUF": "Particules ultra fines",
+    "PM": "Particules fines",
+    "SO2": "Dioxyde de soufre"
+}
+initial_ts = go.Figure()
+initial_ts.update_layout(
+    title="Cliquez sur une station…",
+    margin=dict(t=30, b=30)
+)
 # App Layout with Scrollytelling
 app.layout = html.Div([
     # Header
     html.Header([
         html.H1("Montréal en Visualisations", className="header-title"),
-        html.P("Une exploration des espaces verts, arbres et jardins communautaires de Montréal", 
+        html.P("Une exploration des espaces verts, arbres et jardins communautaires de Montréal",
                className="header-subtitle")
     ], className="app-header"),
-    
+
     # Navigation bar
     html.Nav([
         html.Ul([
             html.Li(html.A("Mon quartier est-il vert ?", href="#section1")),
             html.Li(html.A("Arbres urbains", href="#section2")),
             html.Li(html.A("Parcs de mon quartier", href="#section3")),
-            html.Li(html.A("Jardins communautaires", href="#section4"))
+            html.Li(html.A("Jardins communautaires", href="#section4")),
+            html.Li(html.A("Qualité de l'air", href="#section6")),
         ], className="nav-links")
     ], className="nav-bar"),
-    
+
     # Section 1: Page 1 visualization
     html.Section([
         html.H2("Mon quartier est-il vert ?", id="section1"),
@@ -70,7 +90,7 @@ app.layout = html.Div([
             ], className="viz-column-wide")
         ], className="viz-row")
     ], className="section"),
-    
+
     # Section 2: Page 2 visualization
     html.Section([
         html.H2("Arbres urbains", id="section2"),
@@ -84,7 +104,7 @@ app.layout = html.Div([
             ], className="viz-column")
         ], className="viz-row")
     ], className="section"),
-    
+
     # Section 3: Page 3 visualization
     html.Section([
         html.H2("Parcs de mon quartier", id="section3"),
@@ -105,7 +125,7 @@ app.layout = html.Div([
             ], className="viz-column-wide")
         ], className="viz-row")
     ], className="section"),
-    
+
     # Section 4: Page 4 visualization
     html.Section([
         html.H2("Jardins communautaires", id="section4"),
@@ -116,17 +136,54 @@ app.layout = html.Div([
             ], className="viz-column"),
             html.Div([
                 html.H3("Parcelles de jardins communautaires de montréal"),
-                dcc.Graph(id="fig_map", figure=figures4["map"], 
+                dcc.Graph(id="fig_map", figure=figures4["map"],
                          config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}),
             ], className="viz-column-wide")
         ], className="viz-row")
     ], className="section"),
-    
+# Section 5: Page 5 visualization
+    html.Section([
+        html.H2("Jardins communautaires", id="section4"),
+        html.Div([
+            html.Div([
+                html.H3("Jardins communautaires près de mon quartier"),
+                html.Div(id="info-text-jardins"),
+            ], className="viz-column"),
+            html.Div([
+                html.H3("Parcelles de jardins communautaires de montréal"),
+                dcc.Graph(id="fig_map", figure=figures4["map"],
+                         config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}),
+            ], className="viz-column-wide")
+        ], className="viz-row")
+    ], className="section"),
+# Section 6: Page 6 visualization
+    html.Section([
+        html.H2("Indice de Qualité de l’Air (IQA) par station", id="section6"),
+        html.Div([
+            html.Div(
+                style={"flex": "1", "padding": "0 10px"},
+                children=[
+                    html.H4("IQA quotidien et polluant dominant"),
+                    dcc.Graph(
+                        id="time_series",
+                        figure=initial_ts,
+                        config={'displayModeBar': False}
+                    )
+                ]
+            ),
+            html.Div([
+
+                html.H3("Station d'analyse de Montréal"),
+                dcc.Graph(id="iqa_map", figure=figures6["map"],
+                         config={'scrollZoom': True, 'displayModeBar': False, 'editable': False}),
+            ], className="viz-column-wide")
+        ], className="viz-row")
+    ], className="section"),
     # Footer
     html.Footer([
         html.P("© 2025 INF8808E - Visualisation de données", className="footer-text")
     ], className="app-footer"),
-    
+
     # Add this scrolling JavaScript
     html.Script("""
         document.addEventListener('DOMContentLoaded', function() {
@@ -223,27 +280,27 @@ def update_map_and_hover_info(hoverData):
     try:
         codeid = hoverData["points"][0]["location"]
         print(f"DEBUG: Hovered CODEID: {codeid}")  # Debug statement
-        
+
         df_territoires = data3['df_territoires']
         # Ensure the CODEID in our DataFrame matches what we get from hover
         print(f"DEBUG: Available CODEIDs: {df_territoires['CODEID'].unique()}")
-        
+
         df_espaces_verts = data3['df_espaces_verts']
         territoires_MTL_Clean_geojson_data = data3['territoires_MTL_Clean_geojson_data']
         espace_vert_geojson_data = data3['espace_vert_geojson_data']
         territory_shapes = data3['territory_shapes']
-        
+
         # Check if the CODEID exists in our territory_shapes dictionary
         if codeid not in territory_shapes:
             print(f"DEBUG: CODEID {codeid} not found in territory_shapes")
             return figures3['espace_verts_map'], f"Territoire avec CODEID {codeid} non trouvé."
-        
+
         selected_territory = next(
-            (feature for feature in territoires_MTL_Clean_geojson_data["features"] 
+            (feature for feature in territoires_MTL_Clean_geojson_data["features"]
              if str(feature["properties"]["CODEID"]) == str(codeid)),
             None,
         )
-        
+
         if not selected_territory:
             print(f"DEBUG: No territory found for CODEID {codeid}")
             return figures3['espace_verts_map'], "Aucun territoire trouvé."
@@ -258,7 +315,7 @@ def update_map_and_hover_info(hoverData):
         center = {"lat": centroid.y, "lon": centroid.x}
 
         filtered_features = [
-            feature for feature in espace_vert_geojson_data["features"] 
+            feature for feature in espace_vert_geojson_data["features"]
             if shape(feature["geometry"]).intersects(territory_shape)
         ]
 
@@ -280,7 +337,7 @@ def update_map_and_hover_info(hoverData):
 def display_jardin_count(hover_data):
     if hover_data is None:
         return "Survolez un point pour voir le nombre de jardins dans l'arrondissement."
-    
+
     try:
         df = data4['df']
         arrondissement = hover_data["points"][0]["customdata"][0]  # arrondissement is first in customdata
@@ -292,6 +349,102 @@ def display_jardin_count(hover_data):
         ])
     except (KeyError, IndexError):
         return "Hover data unavailable. Try another marker."
+# Callback to count jardins in the hovered arrondissement
+stats_df = figures6["stats"]
+base_map = figures6["map"]
+df_all = data6['df']
+# Gérer l'état de la station survolée
+last_hovered_station = None
+
+
+# … puis, votre callback mise à jour :
+@app.callback(
+        Output("iqa_map", "figure"),
+        Input("iqa_map", "hoverData")
+    )
+def update_bar_chart(hoverData):
+        global last_hovered_station
+        fig = copy.deepcopy(base_map)
+
+        if hoverData and hoverData.get('points'):
+            found = False
+            for pt in hoverData['points']:
+                cd = pt.get('customdata')
+                if cd:
+                    station_id = cd[0]
+                    last_hovered_station = station_id
+                    found = True
+                    break
+            if not found:
+                station_id = last_hovered_station
+        else:
+            last_hovered_station = None
+            return fig
+
+        fig = add_bars_on_hover(fig, stats_df, last_hovered_station)
+
+        # récupération et traduction des polluants
+        codes = df_all.loc[df_all['stationId']==last_hovered_station, 'polluant'].unique().tolist()
+        lines = []
+        for code in codes:
+            full = POLLUTANT_FULL_NAMES.get(code, code)
+            lines.append(f"{code} : {full}")
+        legend_text = "<b>Polluants mesurés :</b><br>" + "<br>".join(lines)
+
+        fig.update_layout(annotations=[{
+            'xref':'paper','yref':'paper',
+            'x':0.01,'y':0.99,
+            'text':legend_text,
+            'showarrow':False,
+            'align':'left',
+            'bgcolor':'rgba(255,255,255,0.8)',
+            'bordercolor':'black',
+            'borderwidth':1,
+            'font':{'size':10}
+        }])
+
+        return fig
+@app.callback(
+        Output("time_series", "figure"),
+        Input("iqa_map", "clickData")
+)
+def display_time_series(clickData):
+    global last_hovered_station
+
+    # 1) Essayer d'extraire la station depuis clickData
+    station_id = None
+    if clickData and clickData.get("points"):
+        for pt in clickData["points"]:
+            cd = pt.get("customdata")
+            if cd:
+                station_id = cd[0]
+                last_hovered_station = station_id
+                break
+
+    # 2) Si on n'a pas trouvé de station sur ce clic, on retombe sur la dernière valide
+    if station_id is None:
+        station_id = last_hovered_station
+
+    # 3) Si toujours pas de station (aucun clic valide depuis le début), on renvoie l'initial
+    if not station_id:
+        return initial_ts
+
+    # 4) Sinon, on construit la série temporelle
+    dff = df_all[df_all['stationId'] == station_id].copy()
+    dff.sort_values('day', inplace=True)
+
+    fig = px.line(
+        dff, x='day', y='valeur',
+        hover_data=['polluant'],
+        labels={'day': 'Date', 'valeur': 'IQA'},
+        title=f"IQA quotidien — {station_id}"
+    )
+    fig.update_traces(mode='lines+markers')
+    fig.update_layout(margin=dict(t=30, b=30))
+    return fig
+
+
+
 
 # Add CSS for the scrollytelling layout
 app.index_string = '''
