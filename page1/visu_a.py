@@ -71,6 +71,7 @@ def create_page1_figures(data):
         hover_data={
             "Veg_km2": ":.2f",
             "Min_km2": ":.2f",
+            "NOM":True,
             "CODEID": False
         },
         labels={"Veg_km2":"km2 Vég.","Min_km2":"km2 Min."},
@@ -80,10 +81,16 @@ def create_page1_figures(data):
         color_continuous_scale="Greens",
         range_color=(0,100)
     )
+    fig_map.update_traces(hovertemplate="<b>%{customdata[2]}</b><br> 🌱 %{customdata[0]:.2f} km² de surfaces végétales <br> 🏗 %{customdata[1]:.2f} km² de surfaces minérales")
+
     fig_map.update_layout(
-        margin={"r":0,"t":0,"l":0,"b":0},
-        hovermode="closest",
-        coloraxis_showscale=True
+        mapbox_style="carto-positron",
+        mapbox_center={"lat":45.55,"lon":-73.65},
+        mapbox_zoom=9.8,
+        margin=dict(l=0,r=0,t=0,b=0),
+        height=600,
+        dragmode=False,
+        coloraxis_showscale=False
     )
 
     quartier_init = df.iloc[0]
@@ -102,7 +109,8 @@ def create_page1_figures(data):
             values=values_init,
             textinfo="none",
             texttemplate="%{label}\n%{value:.2f} km²",
-            textposition="outside"
+            textposition="outside",
+            marker=dict(colors=["green", "grey", "brown"]) 
         )
     ])
     fig_pie.update_layout(
@@ -121,99 +129,3 @@ def create_page1_figures(data):
         'map': fig_map,
         'pie': fig_pie
     }
-
-# --------------------------------------------------------------------
-# Application Dash
-# --------------------------------------------------------------------
-app = dash.Dash(__name__)
-
-data = load_page1_data()
-figures = create_page1_figures(data)
-
-app.layout = html.Div(
-    style={"display":"flex", "flexDirection":"row"},
-    children=[
-        # Colonne gauche (1/3): Titre + Pie Chart
-        html.Div(
-            style={"width":"33%", "padding":"10px"},
-            children=[
-                html.H1(
-                    "Mon quartier est-il vert ?",
-                    style={"textAlign":"center", "margin":"0 0 20px 0"}
-                ),
-                dcc.Graph(
-                    id="pie_chart",
-                    figure=figures['pie'],
-                    style={"height":"80vh"}
-                )
-            ]
-        ),
-        # Colonne droite (2/3): Carte
-        html.Div(
-            style={"width":"67%", "padding":"10px"},
-            children=[
-                html.H3("Proportion de surface végétale par arrondissement"),
-                dcc.Graph(
-                    id="map",
-                    figure=figures['map'],
-                    style={"height":"80vh"},
-                    hoverData=None
-                )
-            ]
-        )
-    ]
-)
-
-# --------------------------------------------------------------------
-# Callback : survol => maj du Pie Chart
-# --------------------------------------------------------------------
-@app.callback(
-    Output("pie_chart","figure"),
-    Input("map","hoverData")
-)
-def update_pie_on_hover(hoverData):
-    if not hoverData:
-        return figures['pie']
-
-    try:
-        codeid = hoverData["points"][0]["location"]
-    except (IndexError, KeyError, TypeError):
-        return figures['pie']
-
-    row_df = data['df'].loc[data['df']["CODEID"] == codeid]
-    if row_df.empty:
-        return figures['pie']
-
-    row = row_df.iloc[0]
-    autre_val = row["Eau_km2"] + row["NonCl_km2"]
-
-    new_labels = ["Végétale", "Minérale", "Autres"]
-    new_values = [row["Veg_km2"], row["Min_km2"], autre_val]
-
-    new_fig = go.Figure(data=[
-        go.Pie(
-            labels=new_labels,
-            values=new_values,
-            textinfo="none",
-            texttemplate="%{label}\n%{value:.2f} km²",
-            textposition="outside"
-        )
-    ])
-    new_fig.update_layout(
-        title={
-            "text": f"{row['NOM']}",
-            "x":0.5,
-            "y":0.88,
-            "xanchor":"center",
-            "yanchor":"top"
-        },
-        margin={"t":60},
-        showlegend=False
-    )
-    return new_fig
-
-# --------------------------------------------------------------------
-# Lancement
-# --------------------------------------------------------------------
-if __name__=="__main__":
-    app.run(debug=True)
