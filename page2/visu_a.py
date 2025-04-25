@@ -1,81 +1,145 @@
-from dash import Dash, dcc, html, Input, Output
-import pandas as pd
-import geopandas as gpd
-import json
+import unicodedata
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
 import plotly.express as px
+import pandas as pd
+import json
+import os
 
+def clean_string(s: str) -> str:
+    """
+    Convertit la chaîne en minuscules, retire les accents, supprime les espaces,
+    tirets et traits d'union pour uniformiser le nom de quartier.
+    """
+    if not isinstance(s, str):
+        s = str(s)
+    # Normalisation Unicode (NFD) pour séparer les accents
+    nfkd = unicodedata.normalize('NFD', s.lower())
+    # On retire les accents
+    without_accents = ''.join(c for c in nfkd if unicodedata.category(c) != 'Mn')
+    # Retrait des tirets, espaces, etc.
+    without_accents = without_accents.replace('-', '').replace('–', '').replace(' ', '')
+    return without_accents.strip()
 
-df = pd.read_csv(
-    "arbres-publics.csv",
-    engine="python",
-    on_bad_lines="skip"
-)
-df["cleaned"] = (
-    df["ARROND_NOM"]
-      .str.lower()
-      .str.replace(r"[^a-z0-9]", "", regex=True)
-)
-tot = df.groupby("cleaned").size().reset_index(name="nb_arbres")
-rem = (
-    df[df["Arbre_remarquable"] == "O"]
-      .groupby("cleaned")
-      .size().reset_index(name="nb_remarquables")
-)
-stats = pd.merge(tot, rem, on="cleaned", how="left").fillna(0)
-stats["nb_remarquables"] = stats["nb_remarquables"].astype(int)
+def load_page2_data():
+    """Load and prepare data for page 2 from optimized files"""
+    import os
+    
+    # Check if we're running from the main directory or page2 directory
+    if os.path.exists("data/optimized"):
+        base_path = "data/optimized/"
+        geojson_base_path = "data/"
+    else:
+        base_path = "../data/optimized/"
+        geojson_base_path = "../data/"
+    
+    # Load pre-processed data from optimized directory
+    csv_path = os.path.join(base_path, "arbres_aggregated.csv")
+    df_aggregated = pd.read_csv(csv_path)
+    
+    # Clean names for joining
+    df_aggregated["cleaned_name"] = df_aggregated["ARROND_NOM"].apply(clean_string)
+    
+    # Rename columns for consistency with the rest of the code
+    df_grouped = df_aggregated.rename(columns={
+        "Arbres": "Nombre d'arbres",
+        "Arbres_remarquables": "Nombre d'arbres remarquables"
+    })
+    
+    # Load and process GeoJSON file - still need this for mapping
+    geojson_path = os.path.join(geojson_base_path, "montreal.json")
+    with open(geojson_path, "r", encoding="utf-8") as f:
+        geojson_data = json.load(f)
 
-gdf = gpd.read_file("montreal.json")
-gdf = gdf.set_crs(epsg=4326) if gdf.crs is None else gdf.to_crs(epsg=4326)
-gdf["cleaned"] = (
-    gdf["NOM"]
-       .str.lower()
-       .str.replace(r"[^a-z0-9]", "", regex=True)
-)
-gdf = gdf.merge(stats, on="cleaned", how="left").fillna(0)
-gdf["nb_arbres"]       = gdf["nb_arbres"].astype(int)
-gdf["nb_remarquables"] = gdf["nb_remarquables"].astype(int)
-gdf["fid"] = gdf.index.astype(str)               # ID unique
+    # Process geojson to add cleaned names
+    for feature in geojson_data["features"]:
+        original = feature["properties"]["NOM"]
+        cleaned = clean_string(original)
+        feature["properties"]["cleaned_name"] = cleaned
 
+    # Create a dataframe with original and cleaned names from geojson
+    geo_rows = []
+    for feat in geojson_data["features"]:
+        original = feat["properties"]["NOM"]
+        cleaned = feat["properties"]["cleaned_name"]
+        geo_rows.append({
+            "original_name": original,
+            "cleaned_name": cleaned
+        })
+    geo_df = pd.DataFrame(geo_rows)
 
-gj = json.loads(gdf.to_json())
+    # Merge the datasets
+    df_merged = pd.merge(
+        geo_df,
+        df_grouped,
+        how="left",
+        on="cleaned_name"
+    )
 
+    # Fill NaN values
+    df_merged["Nombre d'arbres"] = df_merged["Nombre d'arbres"].fillna(0)
+    df_merged["Nombre d'arbres remarquables"] = df_merged["Nombre d'arbres remarquables"].fillna(0)
 
-fig = px.choropleth_mapbox(
-    gdf,
-    geojson=gj,
-    locations="fid",
-    featureidkey="properties.fid",
-    color="nb_arbres",
-    color_continuous_scale="Greens",
-    range_color=(0, gdf["nb_arbres"].max()),
-    mapbox_style="open-street-map",
-    center={"lat": 45.5017, "lon": -73.5673},
-    zoom=9,
-    hover_name="NOM",
-    hover_data={
-        "nb_arbres": True,
-        "nb_remarquables": True,
-        "fid": False
-    },
-    labels={
-        "nb_arbres": "Total arbres",
-        "nb_remarquables": "Remarquables"
+    return {
+        'df_merged': df_merged,
+        'geojson_data': geojson_data
     }
-)
-fig.update_traces(marker_line_width=1, marker_line_color="gray")
-fig.update_layout(
-    margin={"l":0,"r":0,"t":40,"b":0},
-    title="Arbres publics par arrondissement"
-)
 
+def create_page2_figures(data):
+    """Create figures for page 2"""
+    df_merged = data['df_merged']
+    geojson_data = data['geojson_data']
+    
+    max_val = df_merged["Nombre d'arbres"].max()
+    custom_scale = [
+        [0.0, "white"],   # 0 arbres = blanc
+        [0.000001, "#edf8e9"],
+        [0.2, "#bae4b3"],
+        [0.4, "#74c476"],
+        [0.6, "#31a354"],
+        [0.8, "#006d2c"],
+        [1.0, "#00441b"],
+    ]
 
-app = Dash(__name__)
-app.layout = html.Div(style={"display":"flex"}, children=[
+    fig_map = px.choropleth_mapbox(
+        df_merged,
+        geojson=geojson_data,
+        locations="cleaned_name",                # doit matcher properties.cleaned_name
+        featureidkey="properties.cleaned_name",
+        color="Nombre d'arbres",
+        color_continuous_scale=custom_scale,
+        range_color=(0, max_val),
+        mapbox_style="open-street-map",
+        center={"lat": 45.5017, "lon": -73.5673},
+        zoom=9,
+        hover_name="original_name",
+        hover_data={
+            "Nombre d'arbres": True,
+            "Nombre d'arbres remarquables": True,
+            "cleaned_name": False
+        }
+    )
+    fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    
+    return {
+        'map': fig_map
+    }
+
+# The following part remains for when the file is run directly as a standalone app
+if __name__ == "__main__":
+    app = dash.Dash(__name__)
+    
+    # Load data and create figures
+    data = load_page2_data()
+    figures = create_page2_figures(data)
+    
+    app.layout = html.Div(style={"display":"flex"}, children=[
     # Carte à gauche
     html.Div(style={"width":"70%", "padding":"10px"}, children=[
         dcc.Graph(
-            id="map_arbre",
-            figure=fig,
+            id="quartiers_map",
+            figure=figures['map'],
             style={"height":"90vh"},
             config={"scrollZoom": True, "displayModeBar": False}
         )
@@ -87,23 +151,26 @@ app.layout = html.Div(style={"display":"flex"}, children=[
     ])
 ])
 
+    @app.callback(
+        Output("info", "children"),
+        Input("quartiers_map", "clickData")
+    )
+    def display_click_info(clickData):
+        if clickData is None:
+            return "Cliquez sur un quartier pour voir les détails."
+        try:
+            loc = clickData["points"][0]["location"]
+            df_merged = data['df_merged']
+            row = df_merged[df_merged["cleaned_name"] == loc].iloc[0]
+            original_name = row["original_name"]
+            total_arbres = int(row["Nombre d'arbres"])
+            arbres_remarquables = int(row["Nombre d'arbres remarquables"])
+            return html.Div([
+                html.P(f"Quartier : {original_name}"),
+                html.P(f"Nombre d'arbres : {total_arbres}"),
+                html.P(f"Nombre d'arbres remarquables : {arbres_remarquables}")
+            ])
+        except Exception as e:
+            return f"Erreur lors de la récupération des données : {str(e)}"
 
-@app.callback(
-    Output("info", "children"),
-    Input("map_arbre", "clickData")
-)
-def display_click_info(clickData):
-    if not clickData or "points" not in clickData:
-        return "Cliquez sur un arrondissement pour voir les détails."
-    fid = clickData["points"][0].get("location")
-    if fid is None:
-        return "Aucune donnée disponible."
-    row = gdf.loc[gdf["fid"] == fid].iloc[0]
-    return html.Div([
-        html.P(f"Arrondissement : {row['NOM']}"),
-        html.P(f"Nombre d'arbres : {row['nb_arbres']}"),
-        html.P(f"Arbres remarquables : {row['nb_remarquables']}")
-    ])
-
-if __name__ == "__main__":
     app.run(debug=True)
