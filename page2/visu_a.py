@@ -48,7 +48,7 @@ def load_page2_data():
     })
     
     # Load and process GeoJSON file - still need this for mapping
-    geojson_path = os.path.join(geojson_base_path, "montreal.json")
+    geojson_path = os.path.join(geojson_base_path, "updated_montreal.json")
     with open(geojson_path, "r", encoding="utf-8") as f:
         geojson_data = json.load(f)
 
@@ -93,7 +93,7 @@ def create_page2_figures(data):
     
     max_val = df_merged["Nombre d'arbres"].max()
     custom_scale = [
-        [0.0, "white"],   # 0 arbres = blanc
+        [0.0, "grey"],   # 0 arbres = blanc
         [0.000001, "#edf8e9"],
         [0.2, "#bae4b3"],
         [0.4, "#74c476"],
@@ -113,64 +113,29 @@ def create_page2_figures(data):
         mapbox_style="open-street-map",
         center={"lat": 45.5017, "lon": -73.5673},
         zoom=9,
-        hover_name="original_name",
         hover_data={
             "Nombre d'arbres": True,
             "Nombre d'arbres remarquables": True,
-            "cleaned_name": False
-        }
+            "original_name":True}
     )
+    fig_map.update_traces(hovertemplate="<b>%{customdata[2]}</b><br>%{customdata[0]} arbres dont %{customdata[1]} remarquables")
+
     fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    fig_map.update_layout(
+        mapbox_style="carto-positron",
+        mapbox_center={"lat":45.55,"lon":-73.65},
+        mapbox_zoom=9.8,
+        margin=dict(l=0,r=0,t=0,b=0),
+        height=600,
+        dragmode=False,
+        coloraxis_showscale=False
+    )
+    fig_map.update_traces(showscale=False)
+    fig_map.update_traces(colorbar_title=None)
+
+
     
+
     return {
         'map': fig_map
     }
-
-# The following part remains for when the file is run directly as a standalone app
-if __name__ == "__main__":
-    app = dash.Dash(__name__)
-    
-    # Load data and create figures
-    data = load_page2_data()
-    figures = create_page2_figures(data)
-    
-    app.layout = html.Div(style={"display":"flex"}, children=[
-    # Carte à gauche
-    html.Div(style={"width":"70%", "padding":"10px"}, children=[
-        dcc.Graph(
-            id="quartiers_map",
-            figure=figures['map'],
-            style={"height":"90vh"},
-            config={"scrollZoom": True, "displayModeBar": False}
-        )
-    ]),
-   
-    html.Div(style={"width":"30%", "padding":"10px"}, children=[
-        html.H2("Détails de l'arrondissement", style={"color":"#2a9d8f"}),
-        html.Div("Cliquez sur un arrondissement pour voir les détails.", id="info")
-    ])
-])
-
-    @app.callback(
-        Output("info", "children"),
-        Input("quartiers_map", "clickData")
-    )
-    def display_click_info(clickData):
-        if clickData is None:
-            return "Cliquez sur un quartier pour voir les détails."
-        try:
-            loc = clickData["points"][0]["location"]
-            df_merged = data['df_merged']
-            row = df_merged[df_merged["cleaned_name"] == loc].iloc[0]
-            original_name = row["original_name"]
-            total_arbres = int(row["Nombre d'arbres"])
-            arbres_remarquables = int(row["Nombre d'arbres remarquables"])
-            return html.Div([
-                html.P(f"Quartier : {original_name}"),
-                html.P(f"Nombre d'arbres : {total_arbres}"),
-                html.P(f"Nombre d'arbres remarquables : {arbres_remarquables}")
-            ])
-        except Exception as e:
-            return f"Erreur lors de la récupération des données : {str(e)}"
-
-    app.run(debug=True)

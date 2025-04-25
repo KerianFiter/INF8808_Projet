@@ -141,7 +141,7 @@ def carte_espaces_verts(df_espaces_verts, _zoom, _center, _geojson_data):
         color_continuous_scale="Greens",
         range_color=(0, 3),
     )
-    map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, hovermode="closest", coloraxis_showscale=True)
+    map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, hovermode="closest", coloraxis_showscale=False)
     return map
 
 def create_page3_figures(data):
@@ -175,97 +175,9 @@ def create_page3_figures(data):
         color_continuous_scale="Greens",
         range_color=(0, 10),
     )
-    territoires_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, hovermode="closest", coloraxis_showscale=True)
+    territoires_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, hovermode="closest", coloraxis_showscale=False)
     
     return {
         'espace_verts_map': espace_verts_map,
         'territoires_map': territoires_map
     }
-
-# The following part remains for when the file is run directly as a standalone app
-if __name__ == "__main__":
-    app = dash.Dash(__name__)
-    
-    # Load data and create figures
-    data = load_page3_data()
-    figures = create_page3_figures(data)
-    
-    espace_verts_map = figures['espace_verts_map']
-    territoires_map = figures['territoires_map']
-    
-    app.layout = html.Div(
-        style={"display": "flex", "flexDirection": "row"},
-        children=[
-            html.Div(
-                style={"width": "33%", "padding": "10px"},
-                children=[
-                    html.H1("Parcs de mon quartier", style={"textAlign": "center", "margin": "0 0 20px 0"}),
-                    html.H3("km² d'espaces verts par arrondissement"),
-                    dcc.Graph(id="territoires_map", figure=territoires_map),
-                ],
-            ),
-            html.Div(
-                style={"width": "67%", "padding": "10px"},
-                children=[
-                    html.Div(
-                        id="hover-info",
-                        style={"textAlign": "center", "marginBottom": "10px", "fontSize": "16px", "fontWeight": "bold"},
-                    ),
-                    EventListener(
-                        dcc.Graph(id="espace_verts_map", figure=espace_verts_map, style={"height": "80vh"}),
-                        events=[{"event": "plotly_hover", "props": ["points[0].location"]}],
-                    ),
-                ],
-            ),
-        ],
-    )
-
-    # Callback pour mettre à jour la carte et les informations de survol
-    @app.callback(
-        [Output("espace_verts_map", "figure"), Output("hover-info", "children")],
-        Input("territoires_map", "hoverData"),
-    )
-    def update_map_and_hover_info(hoverData):
-        if not hoverData:
-            return espace_verts_map, "Survolez un territoire pour voir les détails."
-
-        try:
-            codeid = hoverData["points"][0]["location"]
-            df_territoires = data['df_territoires']
-            df_espaces_verts = data['df_espaces_verts']
-            territoires_MTL_Clean_geojson_data = data['territoires_MTL_Clean_geojson_data']
-            espace_vert_geojson_data = data['espace_vert_geojson_data']
-            territory_shapes = data['territory_shapes']
-            
-            selected_territory = next(
-                (feature for feature in territoires_MTL_Clean_geojson_data["features"] if feature["properties"]["CODEID"] == codeid),
-                None,
-            )
-            if not selected_territory:
-                return espace_verts_map, "Aucun territoire trouvé."
-
-            territory_name = selected_territory["properties"].get("NOM", "Nom inconnu")
-            parc_count = df_territoires.loc[df_territoires["CODEID"] == codeid, "PARC_COUNT"].values[0]
-            superficie = df_territoires.loc[df_territoires["CODEID"] == codeid, "SUPERFICIE"].values[0]
-            hover_text = f"Arrondissement: {territory_name} | Nombre de parcs: {parc_count} | Superficie des parcs: {superficie} km²"
-
-            territory_shape = territory_shapes[codeid]
-            centroid = territory_shape.centroid
-            center = {"lat": centroid.y, "lon": centroid.x}
-
-            filtered_features = [
-                feature for feature in espace_vert_geojson_data["features"] if shape(feature["geometry"]).intersects(territory_shape)
-            ]
-
-            filtered_geojson_data = espace_vert_geojson_data.copy()
-            filtered_geojson_data["features"] = filtered_features
-
-            updated_map = carte_espaces_verts(df_espaces_verts, 12, center, filtered_geojson_data)
-            return updated_map, hover_text
-
-        except (IndexError, KeyError, TypeError) as e:
-            print(f"Error: {e}")
-            return espace_verts_map, "Erreur lors du traitement des données de survol."
-
-    # Lancement de l'application
-    app.run(debug=True)

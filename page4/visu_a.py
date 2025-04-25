@@ -19,7 +19,7 @@ def load_page4_data():
     csv_jardins_path = os.path.join(base_path, "jardins-communautaires.csv")
     df = pd.read_csv(csv_jardins_path)
 
-    geojson_jardins_path = os.path.join(base_path, "montreal.json")
+    geojson_jardins_path = os.path.join(base_path, "updated_montreal.json")
     with open(geojson_jardins_path, "r", encoding="utf-8") as f:
         geojson_jardins_data = json.load(f)
     
@@ -42,11 +42,12 @@ def create_page4_figures(data):
         locations=[feature["properties"]["NOM"] for feature in geojson_jardins_data["features"]],
         z=[1] * len(geojson_jardins_data["features"]),  # Dummy values
         featureidkey="properties.NOM",
-        colorscale=[[0, 'rgb(0,128,128)'], [1, 'rgb(0,128,128)']],  # Solid color
+        colorscale=[[0, "rgb(128,150,128)"], [1, "rgb(128,150,128)"]],  # Solid color
         showscale=False,
         marker_line_width=1,
         marker_line_color="white",
-        hoverinfo="none"
+        hoverinfo="none",
+        customdata=["arrondissement"],  # Explicitly include arrondissements
     ))
 
     # Add scatter markers on top
@@ -55,8 +56,8 @@ def create_page4_figures(data):
         lon=df["longitude"],
         mode="markers",
         marker=go.scattermapbox.Marker(
-            size=8,
-            color="orange",
+            size=12,
+            color="green",
             opacity=0.95
         ),
         hovertext=df["nom"],  # Main title
@@ -64,18 +65,18 @@ def create_page4_figures(data):
         customdata=df[["arrondissement", "adresse"]],
         hovertemplate=(
             "<b>%{hovertext}</b><br>" +
-            "Arrondissement: %{customdata[0]}<br>" +
-            "Adresse: %{customdata[1]}<extra></extra>"
+            " %{customdata[0]}<br>" +
+            " %{customdata[1]}<extra></extra>"
         )
     ))
 
-    # Set layout
     fig.update_layout(
         mapbox_style="carto-positron",
-        mapbox_center={"lat": 45.5017, "lon": -73.5673},
-        mapbox_zoom=9,
-        margin={"r":0, "t":0, "l":0, "b":0},
-        height=600
+        mapbox_center={"lat":45.55,"lon":-73.65},
+        mapbox_zoom=9.9,
+        margin=dict(l=0,r=0,t=0,b=0),
+        height=600,
+        dragmode=False
     )
     
     return {
@@ -122,16 +123,16 @@ if __name__ == "__main__":
 
     # Callback to count jardins in the hovered arrondissement
     @app.callback(
-        Output("info-text-jardins", "children"),
-        Input("fig_map", "hoverData")
+        Output("info_text_jardins", "children"),
+        Input("fig_map", "clickData")
     )
-    def display_jardin_count(hover_data):
-        if hover_data is None:
-            return "Survolez un point pour voir le nombre de jardins dans l'arrondissement."
+    def display_jardin_count(clickData):
+        if clickData is None:
+            return "cliquez sur un point pour voir le nombre de jardins dans l'arrondissement."
         
         try:
             df = data['df']
-            arrondissement = hover_data["points"][0]["customdata"][0]  # arrondissement is first in customdata
+            arrondissement = clickData["points"][0]["customdata"][0]  # arrondissement is first in customdata
             jardin_count = len(df[df["arrondissement"] == arrondissement])
             return html.Div([
                 html.H3(f"Arrondissement: {arrondissement}"),
