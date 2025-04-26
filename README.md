@@ -2,6 +2,8 @@
 
 Une exploration des espaces verts, arbres et jardins communautaires de Montréal
 
+![](screenshot.png)
+
 ## Prérequis
 
 - Python 3.10
