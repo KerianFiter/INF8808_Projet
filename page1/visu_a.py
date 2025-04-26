@@ -110,19 +110,22 @@ def create_page1_figures(data):
             textinfo="none",
             texttemplate="%{label}\n%{value:.2f} km²",
             textposition="outside",
-            marker=dict(colors=["green", "grey", "brown"]) 
+            marker=dict(colors=["green", "grey", "brown"]),
+            hovertemplate="%{label}: %{value:.2f} km² (%{percent:.1%})<extra></extra>"
         )
     ])
     fig_pie.update_layout(
         title={
             "text": f"{quartier_init['NOM']}",
             "x":0.5,
-            "y":0.88,
+            "y":0.95,
             "xanchor":"center",
             "yanchor":"top"
         },
         margin={"t":60},
-        showlegend=False
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",  # Fond du papier transparent
+        plot_bgcolor="rgba(0,0,0,0)"
     )
 
     return {

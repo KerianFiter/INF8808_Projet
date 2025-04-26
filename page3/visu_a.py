@@ -28,7 +28,7 @@ def load_page3_data():
     espace_vert_gdf_4326 = gdf.to_crs(epsg=4326)
     espace_vert_geojson_data = json.loads(espace_vert_gdf_4326.to_json())
 
-    chemin_geojson = os.path.join(base_path, "territoires_MTL_Clean.geojson")
+    chemin_geojson = os.path.join(base_path, "montreal.json")
     gdf = gpd.read_file(chemin_geojson)
 
     if gdf.crs is None:
@@ -159,22 +159,69 @@ def create_page3_figures(data):
         espace_vert_geojson_data
     )
     
-    # Création de la carte des territoires
+    # Créer une copie du dataframe pour ne pas modifier l'original
+    df_territoires_map = df_territoires.copy()
+    
+    # Créer une colonne pour colorer les territoires
+    df_territoires_map["COLOR_VALUE"] = df_territoires_map["SUPERFICIE"]
+    # Mettre à NaN les territoires avec moins de 10 parcs
+    df_territoires_map.loc[df_territoires_map["PARC_COUNT"] < 10, "COLOR_VALUE"] = None
+    
+    # Modifier le hover_data pour afficher "sans données" pour les territoires avec moins de 10 parcs
+    df_territoires_map["DISPLAY_STATUS"] = "Données disponibles"
+    df_territoires_map.loc[df_territoires_map["PARC_COUNT"] < 10, "DISPLAY_STATUS"] = "Sans données"
+    
+    # Création de la carte des territoires avec les modifications
     territoires_map = px.choropleth_mapbox(
-        df_territoires,
+        df_territoires_map,
         geojson=territoires_MTL_Clean_geojson_data,
         locations="CODEID",
         featureidkey="properties.CODEID",
-        color="SUPERFICIE",
+        color="COLOR_VALUE",
         hover_name="NOM",
-        hover_data={"CODEID": False, "PARC_COUNT": True, "SUPERFICIE": True},
-        labels={"PARC_COUNT": "Nombre de parcs", "SUPERFICIE": "Superficie (km²)"},
+        hover_data={
+            "CODEID": False, 
+            "PARC_COUNT": True, 
+            "SUPERFICIE": True, 
+            "DISPLAY_STATUS": False,
+            "COLOR_VALUE": False
+        },
+        labels={
+            "PARC_COUNT": "Nombre de parcs", 
+            "SUPERFICIE": "Superficie (km²)",
+            "DISPLAY_STATUS": "Statut"
+        },
         mapbox_style="carto-positron",
         center={"lat": 45.55, "lon": -73.75},
         zoom=9,
         color_continuous_scale="Greens",
         range_color=(0, 10),
     )
+    
+    # Ajouter une couche pour les territoires sans données (gris)
+    territoires_map.update_traces(
+        marker_line_width=0.5,
+        marker_line_color="black",
+    )
+    
+    # Ajouter les territoires avec moins de 10 parcs en gris
+    territoires_sans_donnees = df_territoires_map[df_territoires_map["PARC_COUNT"] < 10]
+    if not territoires_sans_donnees.empty:
+        territoires_map.add_trace(
+            px.choropleth_mapbox(
+                territoires_sans_donnees,
+                geojson=territoires_MTL_Clean_geojson_data,
+                locations="CODEID",
+                hover_data={
+                    "CODEID": False,
+                    "DISPLAY_STATUS": True,
+                },
+                labels={"DISPLAY_STATUS": "Statut"},
+                featureidkey="properties.CODEID",
+                color_discrete_sequence=["gray"],
+            ).data[0]
+        )
+    
     territoires_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, hovermode="closest", coloraxis_showscale=False)
     
     return {

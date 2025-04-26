@@ -14,13 +14,9 @@ def clean_string(s: str) -> str:
     """
     if not isinstance(s, str):
         s = str(s)
-    # Normalisation Unicode (NFD) pour séparer les accents
-    nfkd = unicodedata.normalize('NFD', s.lower())
-    # On retire les accents
-    without_accents = ''.join(c for c in nfkd if unicodedata.category(c) != 'Mn')
     # Retrait des tirets, espaces, etc.
-    without_accents = without_accents.replace('-', '').replace('–', '').replace(' ', '')
-    return without_accents.strip()
+    s = s.replace('-', '').replace('–', '').replace(' ', '')
+    return s.strip()
 
 def load_page2_data():
     """Load and prepare data for page 2 from optimized files"""
@@ -48,7 +44,7 @@ def load_page2_data():
     })
     
     # Load and process GeoJSON file - still need this for mapping
-    geojson_path = os.path.join(geojson_base_path, "updated_montreal.json")
+    geojson_path = os.path.join(geojson_base_path, "montreal.json")
     with open(geojson_path, "r", encoding="utf-8") as f:
         geojson_data = json.load(f)
 
@@ -93,7 +89,7 @@ def create_page2_figures(data):
     
     max_val = df_merged["Nombre d'arbres"].max()
     custom_scale = [
-        [0.0, "grey"],   # 0 arbres = blanc
+        [0.0, "grey"],
         [0.000001, "#edf8e9"],
         [0.2, "#bae4b3"],
         [0.4, "#74c476"],
@@ -132,9 +128,6 @@ def create_page2_figures(data):
     )
     fig_map.update_traces(showscale=False)
     fig_map.update_traces(colorbar_title=None)
-
-
-    
 
     return {
         'map': fig_map

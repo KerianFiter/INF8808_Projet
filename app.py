@@ -114,23 +114,28 @@ app.layout = html.Div([
         html.Div([
             html.Div([
                 html.H3("Parcs dans montréal"),
-                html.Div('',id='parcs_info',style={"width": "100%", "height": "250px", "overflow": "hidden"}),
-                html.Div(   style={"width": "100%", "height": "400px", "overflow": "hidden"},  # Adjust height & prevent overlap
-                            children=[
-                                dcc.Graph(id="parcs_arrondissement_map", figure=figures3["territoires_map"]),
-                            ])
-                
-            ], className="viz-column"),
+                html.Div('', id='parcs_info', style={"width": "100%", "height": "170px", "overflow": "auto", "marginBottom": "5px"}),
+                html.Div(style={"width": "100%", "flex": "1", "minHeight": "350px"}, 
+                         children=[
+                             dcc.Graph(id="parcs_arrondissement_map", figure=figures3["territoires_map"], 
+                                      style={"height": "100%"}),
+                         ])
+            ], className="viz-column", style={"height": "100%", "display": "flex", "flexDirection": "column"}),
             html.Div([
                 html.Div(
                     id="hover-info",
-                    style={"textAlign": "center", "marginBottom": "10px"},
+                    style={"textAlign": "center", "marginBottom": "5px", "height": "auto"},
                 ),
-                EventListener(
-                    dcc.Graph(id="espace_verts_map", figure=figures3["espace_verts_map"]),
-                    events=[{"event": "plotly_hover", "props": ["points[0].location"]}],
-                ),
-            ], className="viz-column-wide")
+                html.Div(style={"flex": "1", "width": "100%", "position": "relative"},
+                    children=[
+                        EventListener(
+                            dcc.Graph(id="espace_verts_map", figure=figures3["espace_verts_map"],
+                                    style={"height": "100%", "width": "100%", "position": "absolute"}),
+                            events=[{"event": "plotly_hover", "props": ["points[0].location"]}],
+                        ),
+                    ]
+                )
+            ], className="viz-column-wide", style={"height": "100%", "display": "flex", "flexDirection": "column"})
         ], className="viz-row")
     ], className="section"),
 
@@ -140,16 +145,18 @@ app.layout = html.Div([
         html.Div([
             html.Div([
                 html.H3("Jardins communautaires près de mon quartier"),
-                html.Div("",id="info_jardins"),
+                html.Div("", id="info_jardins"),
             ], className="viz-column"),
             html.Div([
                 html.H3("Parcelles de jardins communautaires de montréal"),
-                dcc.Graph(id="jardins_map", figure=figures4["map"],config={'scrollZoom': False, 'displayModeBar': False, 'editable': False}),
+                dcc.Graph(id="jardins_map", figure=figures4["map"], config={'scrollZoom': False, 'displayModeBar': False, 'editable': False}),
             ], className="viz-column-wide")
         ], className="viz-row")
     ], className="section"),
-# Section 5: Page 5 visualization
+
+    # Section 5: Page 5 visualization
     html.Section([
+        html.Div(id='hidden-div-for-initializing-bars', style={'display': 'none'}),
         html.H2("Réseaux de surveillance de la qualité de l'air (RSQA)", id="section5"),
         html.Div([
             html.Div(
@@ -183,10 +190,10 @@ app.layout = html.Div([
     ], className="section"),
     # Footer
     html.Footer([
-        html.P("© 2025 INF8808E - Visualisation de données", className="footer-text")
+        html.P("© 2025 INF8808 - Visualisation de données", className="footer-text")
     ], className="app-footer"),
 
-    # Add this scrolling JavaScript
+    # Scrolling JavaScript
     html.Script("""
         document.addEventListener('DOMContentLoaded', function() {
             // Smooth scrolling for navigation links
@@ -233,7 +240,6 @@ def update_pie_on_click(clickData):
 
     new_labels = ["Végétale", "Minérale", "Autres"]
     new_values = [row["Veg_km2"], row["Min_km2"], autre_val]
-    print(row_df.head(1))
     text = dcc.Markdown(f""" 
                             <div style="text-align:center; font-size:20px;">
                             Les surfaces végétales sont essentielles à l’environnement et à notre bien-être. 
@@ -252,19 +258,21 @@ def update_pie_on_click(clickData):
             texttemplate="%{label}\n%{value:.2f} km²",
             textposition="outside",
             marker=dict(colors=["green", "grey", "brown"]),
-            hovertemplate="<b>%{label}</b><br>Surface: %{value:.2f} km²"
+            hovertemplate="%{label}: %{value:.2f} km² (%{percent:.1%})<extra></extra>"
         )
     ])
     new_fig.update_layout(
         title={
             "text": f"{row['NOM']}",
             "x":0.5,
-            "y":0.88,
+            "y":0.95,
             "xanchor":"center",
             "yanchor":"top"
         },
         margin={"t":60},
-        showlegend=False
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",  # Fond du papier transparent
+        plot_bgcolor="rgba(0,0,0,0)"
     )
     return new_fig,text
 ### Callback affichage texte arbres
@@ -273,7 +281,6 @@ def update_pie_on_click(clickData):
     Input("quartiers_map", "clickData")
 )
 def display_click_info(clickData):
-    print('callback arbres')
     if clickData is None:
         return dcc.Markdown(f""" 
                             <div style="text-align:center; font-size:20px;">
@@ -312,7 +319,7 @@ def display_click_info(clickData):
     except Exception as e:
         return f"Erreur lors de la récupération des données : {str(e)}"
 
-# Callback pour mettre à jour la carte et les informations de survol
+# Callback pour mettre à jour la carte et les informations de click
 @app.callback(
     [Output("espace_verts_map", "figure"), Output("parcs_info", "children")],
     Input("parcs_arrondissement_map", "clickData"),
@@ -427,27 +434,20 @@ def display_jardin_count(clickData):
 
 ### callback time_series pour le RSQA
 @app.callback(
-        [Output("time_series", "figure"),Output("iqa_journalier",'children'),Output('rsqa_map','figure')],
-        Input("rsqa_map", "clickData")
+    [Output("time_series", "figure"), Output("iqa_journalier",'children')],
+    Input("rsqa_map", "clickData")
 )
 def update_time_series(clickData):
-    
-    #print('callback trigerred clicked on the rsqa map !!')
-    map_fig = figures5["map"]
-
     if not clickData:
-        return go.Figure(),"Cliquez sur une station pour plus de details", map_fig # Return an empty figure if nothing is clicked
-    #print(clickData["points"][0]["customdata"])
-    # Extract stationId from clicked marker
-    station_name = clickData["points"][0]["customdata"][0]  # Assuming stationId is stored as first element in customdata
+        return go.Figure(), "Cliquez sur une station pour plus de details"
+    
+    station_name = clickData["points"][0]["customdata"][0]
     df = data5['df']
-    # Filter dataset based on stationId
     filtered_df = df[df["nom"] == station_name]
 
     colors = {"Bon": "green", "Acceptable": "orange", "Mauvais": "red"}
     filtered_df['colors'] = filtered_df['quality_cat'].map(colors)
-    #print(filtered_df.head(5))
-    # Create updated line figure
+    
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=filtered_df["date"], 
@@ -457,30 +457,38 @@ def update_time_series(clickData):
         customdata=filtered_df[["quality_cat", "colors", "polluant"]].values.tolist(),
         hovertemplate="<b>%{x|%Y-%m-%d}</b><br><span style='background-color:%{customdata[1]}; padding:5px;'>%{customdata[0]} : %{y} indice atteint pour polluant %{customdata[2]}</span><extra></extra>",
         hoverlabel=dict(
-            bgcolor=filtered_df['colors'],  # Use color from customdata
+            bgcolor=filtered_df['colors'],
             font_size=12,
-            font_color="white"  # Ensure readability
+            font_color="white" 
         ),
     ))
     fig.update_layout(
-    xaxis=dict(
-        showticklabels=True,  # Hide labels
-        tickmode="auto",  # Auto ticks based on data range
-        tickformat="%b",  # Show month abbreviations (e.g., Jan, Feb) if needed
-        showgrid=True,  # Ensure grid lines are visible
-        dtick="M1"  # A grid mark for each month
+        xaxis=dict(
+            showticklabels=True,
+            tickmode="auto",
+            tickformat="%b",
+            showgrid=True,
+            dtick="M1"
         )
     )
     title = f"IQA journalier de la station {station_name} en 2024"
-        
-    stats_df= data5['df_stats']
-    for _, row in stats_df.iterrows():
-        map_fig = add_bars(map_fig, stats_df, row["stationId"], scale=0.00015)  # Réduction de la hauteur
-        
     
-    return fig,title,map_fig
+    return fig, title
 
+@app.callback(
+    Output('rsqa_map', 'figure'),
+    Input('hidden-div-for-initializing-bars', 'children')
+)
+def initialize_bars(_):
+    """Initialize the map with bars once on page load"""
+    map_fig = figures5["map"]
+    stats_df = data5['df_stats']
     
+    # Add bars for all stations
+    for _, row in stats_df.iterrows():
+        map_fig = add_bars(map_fig, stats_df, row["stationId"], scale=0.00015, min_height=0.0005)
+    
+    return map_fig
 
 # Add CSS for the scrollytelling layout
 app.index_string = '''

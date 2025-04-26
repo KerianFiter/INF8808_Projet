@@ -101,15 +101,14 @@ def create_base_map(geojson, stats_df):
     ))
 
     # 2) points pour chaque station, on stocke le triplet [id, bon, acc, mau] dans customdata
-    stats_df["custom"] = stats_df[["stationId","Bon","Acceptable","Mauvais","nom"]].values.tolist()
+    stats_df["custom"] = stats_df[["stationId","Bon","Acceptable","Mauvais","nom","polluants_list"]].values.tolist()
     fig.add_trace(go.Scattermapbox(
         lat=stats_df["latitude"],
         lon=stats_df["longitude"],
         mode="markers",
         marker=dict(size=12, color="black"),
-        customdata=stats_df[["nom", "Bon", "Acceptable", "Mauvais"]].values.tolist(),
-        hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]} bon jours, %{customdata[2]} jours acceptables et %{customdata[3]} jours mauvais<extra></extra>",
-        
+        customdata=stats_df[["nom", "Bon", "Acceptable", "Mauvais", "polluants_list"]].values.tolist(),
+        hovertemplate="<b>%{customdata[0]}</b><br>Polluants mesurés: %{customdata[4]}<br>%{customdata[1]} bon jours, %{customdata[2]} jours acceptables et %{customdata[3]} jours mauvais<extra></extra>",
         showlegend=False
     ))
     
@@ -148,8 +147,9 @@ def create_base_map(geojson, stats_df):
 
 def add_bars(   fig, stats_df, station_id,
                 scale=0.00009,   # hauteur = jours * scale
-                dx=0.01,         # espacement horizontal ≃ 1 km
+                dx=0.01,         # espacement horizontal ≃ 1 km
                 zoom=10,
+                min_height=0.001,  # minimum height for visibility
                 ):
     """
     Dessine trois segments verticaux côte à côte pour Bon / Acceptable / Mauvais.
@@ -158,87 +158,33 @@ def add_bars(   fig, stats_df, station_id,
     lon0, lat0 = row["longitude"], row["latitude"]
     colors = {"Bon": "green", "Acceptable": "orange", "Mauvais": "red"}
     cats   = ["Bon", "Acceptable", "Mauvais"]
-    if row['nom']=='Maisonneuve':
-        lon0+=0.05
-        lat0+=-0.01
-    if row['nom']=='St-Dominique':
-        lon0+=0.04
-        lat0-=0.03
-    if row['nom']=='York/Roberval':
-        lon0-=0.04
-        lat0-=0.03  
-        
-    offset_rect_polluants = 0.001 * 10/zoom
-    offset_rect_nom = 0.008 * 10/zoom
-    offset_chart = 0.020 *10/zoom
-    offset_txt_polluants = offset_rect_polluants+ (offset_rect_nom-offset_rect_polluants)/2
-    
-    offset_txt_nom = offset_rect_nom+ (offset_chart-offset_rect_nom)/2
     
     for idx, cat in enumerate(cats):
         jours = int(row.get(cat, 0))
-        if jours <= 0:
+        
+        # Calculate bar height - ensure minimum visibility even with very small values
+        if jours > 0:
+            bar_height = max(jours * scale, min_height)
+        else:
             continue
+            
         # calcul des positions
         lon_shift = lon0 + (idx - 1) * dx *10/zoom  # -dx, 0, +dx
-        lat_end   = lat0  + jours * scale
+        lat_end   = lat0 + bar_height
 
         fig.add_trace(go.Scattermapbox(
             lon=[lon_shift, lon_shift],
-            lat=[lat0+offset_chart, lat_end+offset_chart],
+            lat=[lat0, lat_end],
             mode="lines+text",
+            text=[f"{jours}"] if jours > 0 else "",
             textposition="top center",
             textfont=dict(size=12, color=colors[cat]),
-            line=dict(width=14, color=colors[cat]),  # plus large = effet "barre"
+            line=dict(width=14, color=colors[cat]),
             hoverinfo='skip',
             showlegend=False
         ))
-        
-    # Ajout d'un rectangle gris sous les barres avec le nom de la station sous les barres
-    fig.add_trace(go.Scattermapbox(
-        lon=[lon0, lon0], lat=[lat0+offset_rect_nom, lat0 + offset_chart],  
-        mode="lines",
-        text=["", row["nom"]],
-        textposition="top center",
-        textfont=dict(size=14, color="white"),
-        line=dict(width=120, color="grey"), 
-        showlegend=False,
-        hoverinfo="skip"
-    ))
-    
-    fig.add_trace(go.Scattermapbox(
-        lon=[lon0, lon0], lat=[lat0+offset_rect_polluants, lat0 + offset_rect_nom], 
-        mode="lines",
-        text=["", row["polluants_list"]],
-        textposition="top center",
-        textfont=dict(size=12, color="white"),
-        line=dict(width=120, color="lightgrey"),
-        hoverinfo="skip", 
-        showlegend=False
-    ))
-    # add polluant text
-    fig.add_trace(go.Scattermapbox(
-        lon=[lon0], lat=[lat0 + offset_txt_polluants],  # Position at the top of the line
-        mode="text",
-        text=[row["polluants_list"]],
-        textposition="middle center",
-        textfont=dict(size=10, color="black"),
-        hoverinfo="skip",
-        showlegend=False
-    ))
-    #add station name
-    fig.add_trace(go.Scattermapbox(
-        lon=[lon0], lat=[lat0 + offset_txt_nom],  # Position at the top of the line
-        mode="text",
-        text=[row["nom"]],
-        textposition="middle center",
-        textfont=dict(size=11, color="white"),
-        hoverinfo="skip",
-        showlegend=False
-    ))
-    #print(fig.layout.annotations)
 
-    return  fig
+    return fig
 
 def create_page5_figures(data):
     df= data["df"]
